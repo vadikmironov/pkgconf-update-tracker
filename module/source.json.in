@@ -1,0 +1,6 @@
+{
+    "url": "https://github.com/pkgconf/pkgconf/releases/download/pkgconf-%{upstream_version}/pkgconf-%{upstream_version}.tar.gz",
+    "integrity": "",
+    "strip_prefix": "pkgconf-%{upstream_version}",
+    "overlay": {}
+}
