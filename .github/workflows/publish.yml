@@ -24,6 +24,10 @@ on:
         description: "Upstream version to stage; default: upstream.json. For a test of the step"
         required: false
         type: string
+      bcr_revision:
+        description: "N of a BCR-only revision .bcr.N; default: upstream.json"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -59,9 +63,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           FORK: ${{ vars.BCR_FORK }}
           VERSION: ${{ inputs.version }}
+          REVISION: ${{ inputs.bcr_revision }}
         run: |
           module="$(python3 -c 'import json; print(json.load(open("upstream.json"))["module"])')"
-          tools/common/render.py ${VERSION:+--version "$VERSION"} --out "$RUNNER_TEMP/rendered" >/dev/null
+          tools/common/render.py ${VERSION:+--version "$VERSION"} ${REVISION:+--bcr-revision "$REVISION"} --out "$RUNNER_TEMP/rendered" >/dev/null
           version="$(cd "$RUNNER_TEMP/rendered/registry/modules/$module" && ls -d */ | tr -d /)"
           branch="$module-$version"
           echo "module=$module" >> "$GITHUB_OUTPUT"
@@ -86,10 +91,11 @@ jobs:
         if: steps.state.outputs.needed == 'true'
         env:
           VERSION: ${{ inputs.version }}
+          REVISION: ${{ inputs.bcr_revision }}
         run: |
           # Full history without blobs: a push from a shallow clone can be refused.
           git clone -q --filter=blob:none "https://github.com/$BCR" "$RUNNER_TEMP/bcr"
-          tools/common/stage_into_bcr.sh "$RUNNER_TEMP/bcr" ${VERSION:+--version "$VERSION"} | tee "$RUNNER_TEMP/stage.txt"
+          tools/common/stage_into_bcr.sh "$RUNNER_TEMP/bcr" ${VERSION:+--version "$VERSION"} ${REVISION:+--bcr-revision "$REVISION"} | tee "$RUNNER_TEMP/stage.txt"
 
       - name: Commit, and push the branch to the fork
         if: steps.state.outputs.needed == 'true'
