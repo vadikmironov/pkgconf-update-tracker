@@ -2,5 +2,6 @@
     "module": "pkgconf",
     "version": "3.0.7",
     "bcr_revision": 0,
+    "permalinks_verified_for": "3.0.7",
     "release_notes": "https://github.com/pkgconf/pkgconf/releases/tag/pkgconf-%{upstream_version}"
 }

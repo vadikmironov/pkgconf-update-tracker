@@ -27,12 +27,13 @@ concurrency:
 
 jobs:
   render:
-    name: Render
+    name: Render and canary
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       module: ${{ steps.render.outputs.module }}
       module_version: ${{ steps.render.outputs.module_version }}
+      permalinks: ${{ steps.render.outputs.permalinks }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Render the module
@@ -40,10 +41,17 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          tools/common/render.py ${VERSION:+--version "$VERSION"}
+          # Exit code 3: the render is complete, but a permalink needs a person.
+          # The other jobs still test the module; the Permalinks job reports it.
+          code=0
+          tools/common/render.py ${VERSION:+--version "$VERSION"} 2>&1 | tee render.log || code=${PIPESTATUS[0]}
+          if [[ $code == 3 ]]; then echo "permalinks=needs-a-person" >> "$GITHUB_OUTPUT"; elif [[ $code != 0 ]]; then exit "$code"; fi
+          { echo '```'; grep -E "permalink" render.log || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           module="$(python3 -c 'import json; print(json.load(open("upstream.json"))["module"])')"
           echo "module=$module" >> "$GITHUB_OUTPUT"
           echo "module_version=$(ls "rendered/registry/modules/$module" | grep -v -e metadata.json -e README.md)" >> "$GITHUB_OUTPUT"
+      - name: "Canary: each check of the gate still fails on a bad input"
+        run: tools/common/canary.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rendered
@@ -165,11 +173,28 @@ jobs:
           bazel test --noenable_runfiles --test_output=errors \
             --registry="$registry" --registry=https://bcr.bazel.build @pkgconf//...
 
+  permalinks:
+    # The renderer moves the line numbers of a link when upstream only moved the
+    # lines. It cannot do that when the text itself changed.
+    name: Permalinks
+    needs: render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: No permalink needs a person
+        env:
+          STATE: ${{ needs.render.outputs.permalinks }}
+        run: |
+          if [[ "$STATE" == "needs-a-person" ]]; then
+            echo "::error::The text under a permalink changed upstream. See the summary of the Render job. Correct the link in module/, then run tools/common/check_permalinks.py --fix."
+            exit 1
+          fi
+
   gate:
     # The one required check. It fails if a job before it did not pass.
     name: Gate
     if: always()
-    needs: [render, test, test-ubuntu2004, module-checks]
+    needs: [render, test, test-ubuntu2004, module-checks, permalinks]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

@@ -22,11 +22,17 @@ import shutil
 import sys
 import urllib.request
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import permalinks  # noqa: E402
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 # No collision with the @VAR@ and ${VAR} forms that upstream build files use.
 TOKEN_UPSTREAM = b"%{upstream_version}"
 TOKEN_MODULE = b"%{module_version}"
+
+# The render is complete, but a permalink needs a person.
+EXIT_PERMALINKS = 3
 
 
 def integrity(data):
@@ -41,18 +47,32 @@ def json_dump(path, data):
 
 
 class Renderer:
-    def __init__(self, upstream_version, bcr_revision):
+    def __init__(self, upstream_version, bcr_revision, verified=None, cache=None, offline=False):
         self.upstream_version = upstream_version
         self.module_version = upstream_version + (".bcr.%d" % bcr_revision if bcr_revision else "")
+        # The version that the line numbers of the permalinks are correct for.
+        self.verified = verified or upstream_version
+        self.cache = cache
+        self.offline = offline
+        self.links = []
 
-    def text(self, data):
+    def text(self, data, name=""):
+        if TOKEN_UPSTREAM in data and b"/blob/" in data and self.cache is not None:
+            try:
+                text, rows = permalinks.relocate(
+                    data.decode(), self.verified, self.upstream_version, self.cache / "permalinks", self.offline
+                )
+                self.links += [(state, name, link, note) for state, link, note in rows]
+                data = text.encode()
+            except UnicodeDecodeError:
+                pass
         return data.replace(TOKEN_UPSTREAM, self.upstream_version.encode()).replace(
             TOKEN_MODULE, self.module_version.encode()
         )
 
     def copy(self, src, dst):
         dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_bytes(self.text(src.read_bytes()))
+        dst.write_bytes(self.text(src.read_bytes(), src.name))
 
     def copy_tree(self, src, dst):
         for f in sorted(p for p in src.rglob("*") if p.is_file()):
@@ -75,7 +95,7 @@ def download(url, cache, offline):
 
 def render(module_dir, consumers_dir, out, upstream, cache, offline):
     name = upstream["module"]
-    r = Renderer(upstream["version"], upstream.get("bcr_revision", 0))
+    r = Renderer(upstream["version"], upstream.get("bcr_revision", 0), upstream.get("permalinks_verified_for"), cache, offline)
 
     registry = out / "registry"
     for stale in (registry, out / "consumers"):
@@ -123,7 +143,7 @@ def render(module_dir, consumers_dir, out, upstream, cache, offline):
     if consumers_dir.is_dir():
         r.copy_tree(consumers_dir, out / "consumers")
 
-    return name, r.module_version, version_dir, from_cache
+    return name, r.module_version, version_dir, from_cache, r.links
 
 
 def check(version_dir, name, module_version, bcr):
@@ -161,10 +181,24 @@ def main():
         upstream["bcr_revision"] = args.bcr_revision
 
     out = pathlib.Path(args.out).expanduser().resolve()
-    name, module_version, version_dir, from_cache = render(
-        ROOT / "module", ROOT / "consumers", out, upstream, pathlib.Path(args.cache).expanduser(), args.offline
-    )
+    try:
+        name, module_version, version_dir, from_cache, links = render(
+            ROOT / "module", ROOT / "consumers", out, upstream, pathlib.Path(args.cache).expanduser(), args.offline
+        )
+    except permalinks.Offline as e:
+        sys.exit("render: %s and --offline is set" % e)
     print("render: %s@%s -> %s%s" % (name, module_version, version_dir, " (archive from the cache)" if from_cache else ""))
+
+    # The line numbers of a permalink follow the text to the new version. Only a
+    # link whose text is not there needs a person.
+    counts = {}
+    for state, source, link, note in links:
+        counts[state] = counts.get(state, 0) + 1
+        if state != "same":
+            print("render: permalink %-7s %s: %s  %s" % (state, source, link.split("/blob/")[1], note))
+    if links:
+        print("render: permalinks: " + ", ".join("%d %s" % (n, s) for s, n in sorted(counts.items())))
+    needs_a_person = any(state in permalinks.NEEDS_A_PERSON for state, _, _, _ in links)
 
     if args.check:
         problems = check(version_dir, name, module_version, args.check)
@@ -173,10 +207,18 @@ def main():
         if problems:
             sys.exit("check: the render is NOT identical to %s" % args.check)
         print("check: byte-identical to modules/%s/%s and README.md in %s" % (name, module_version, args.check))
-        return
+    else:
+        print("render: a Bazel server that is in operation keeps the old source.json; run `bazel shutdown` first")
+        print("render: cd %s/consumers/default && bazel test --registry=file://%s/registry --registry=https://bcr.bazel.build @%s//..." % (out, out, name))
 
-    print("render: a Bazel server that is in operation keeps the old source.json; run `bazel shutdown` first")
-    print("render: cd %s/consumers/default && bazel test --registry=file://%s/registry --registry=https://bcr.bazel.build @%s//..." % (out, out, name))
+    if needs_a_person:
+        # The output is complete and can be built. Exit code 3 means only this.
+        print(
+            "render: a permalink needs a person. Correct the link in module/, then run "
+            "tools/common/check_permalinks.py --fix, which also does the links that only moved.",
+            file=sys.stderr,
+        )
+        sys.exit(EXIT_PERMALINKS)
 
 
 if __name__ == "__main__":
