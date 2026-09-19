@@ -1,0 +1,3 @@
+# Names that a correct build leaves as #undef.
+# AIX only.
+_LARGE_FILES
