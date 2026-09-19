@@ -17,3 +17,4 @@ else
   echo "check_undef_set: '<' is expected and absent, '>' is new and needs a check in the overlay" >&2
   exit 1
 fi
+# test
