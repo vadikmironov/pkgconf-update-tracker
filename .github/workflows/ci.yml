@@ -99,8 +99,16 @@ jobs:
             registry="file://$(cd ../../registry && pwd)"
           fi
           bazel $startup version
-          bazel $startup test --verbose_failures --test_output=errors \
-            --registry="$registry" --registry=https://bcr.bazel.build \
+          flags=(--registry="$registry" --registry=https://bcr.bazel.build)
+          # A download can fail for a moment, and one such failure in one of many
+          # jobs would make the gate red. Bazel gets its dependencies in the
+          # loading and analysis phases, so try those again before the tests.
+          for attempt in 1 2 3; do
+            bazel $startup build --nobuild "${flags[@]}" "@${{ needs.render.outputs.module }}//..." && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((attempt * 20))
+          done
+          bazel $startup test --verbose_failures --test_output=errors "${flags[@]}" \
             "@${{ needs.render.outputs.module }}//..."
 
   test-ubuntu2004:
@@ -138,9 +146,18 @@ jobs:
         working-directory: rendered/consumers/default
         run: |
           registry="file://$(cd ../../registry && pwd)"
-          bazel version
-          bazel test --verbose_failures --test_output=errors \
-            --registry="$registry" --registry=https://bcr.bazel.build \
+          startup=""
+          bazel $startup version
+          flags=(--registry="$registry" --registry=https://bcr.bazel.build)
+          # A download can fail for a moment, and one such failure in one of many
+          # jobs would make the gate red. Bazel gets its dependencies in the
+          # loading and analysis phases, so try those again before the tests.
+          for attempt in 1 2 3; do
+            bazel $startup build --nobuild "${flags[@]}" "@${{ needs.render.outputs.module }}//..." && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((attempt * 20))
+          done
+          bazel $startup test --verbose_failures --test_output=errors "${flags[@]}" \
             "@${{ needs.render.outputs.module }}//..."
 
   module-checks:
@@ -163,6 +180,12 @@ jobs:
         run: |
           registry="file://$(cd ../../registry && pwd)"
           flags=(--registry="$registry" --registry=https://bcr.bazel.build)
+          # See the platform jobs: a download can fail for a moment.
+          for attempt in 1 2 3; do
+            bazel build --nobuild "${flags[@]}" @pkgconf//... && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((attempt * 20))
+          done
           bazel build "${flags[@]}" @pkgconf//:config_h
           config_h="$(bazel cquery "${flags[@]}" --output=files @pkgconf//:config_h 2>/dev/null)"
           "$GITHUB_WORKSPACE/tools/module/check_undef_set.sh" "$config_h"
