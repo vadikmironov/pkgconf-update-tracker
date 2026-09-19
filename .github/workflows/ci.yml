@@ -209,7 +209,8 @@ jobs:
           else
             git checkout --orphan rendered
           fi
-          git rm -rq --ignore-unmatch .
+          # -f: on a new orphan branch, git sees each file as staged.
+          git rm -rqf --ignore-unmatch .
           git clean -fdxq
           cp -R "$RUNNER_TEMP/rendered/registry/modules" modules
           git add -A
