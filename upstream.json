@@ -1,5 +1,6 @@
 {
     "module": "pkgconf",
     "version": "3.0.7",
-    "bcr_revision": 0
+    "bcr_revision": 0,
+    "_test": 1
 }
