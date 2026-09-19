@@ -1,0 +1,38 @@
+name: TEMP code owner test
+
+# One use only, then deleted. It opens two pull requests as the Renovate App,
+# to show what the rule for main demands from an author that is not a code owner.
+
+on: workflow_dispatch
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    environment: renovate
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          R: ${{ github.repository }}
+        run: |
+          base="$(gh api repos/$R/git/ref/heads/main -q .object.sha)"
+          # A: a new file under tools/, which has an owner.
+          gh api -X POST repos/$R/git/refs -f ref=refs/heads/test/app-tools -f sha="$base" >/dev/null
+          gh api -X PUT repos/$R/contents/tools/module/app_test.txt -f branch=test/app-tools \
+            -f message="test: the App changes a path that has an owner" -f content="$(printf 'test\n' | base64 -w0)" >/dev/null
+          gh pr create --repo $R --head test/app-tools --base main --title "TEST by the App: a path with an owner" --body "Will be closed."
+          # B: upstream.json only, which has no owner.
+          gh api -X POST repos/$R/git/refs -f ref=refs/heads/test/app-upstream -f sha="$base" >/dev/null
+          sha="$(gh api repos/$R/contents/upstream.json -q .sha)"
+          new="$(gh api repos/$R/contents/upstream.json -q .content | base64 -d | python3 -c 'import json,sys; d=json.load(sys.stdin); d["_test"]=1; print(json.dumps(d, indent=4))' | base64 -w0)"
+          gh api -X PUT repos/$R/contents/upstream.json -f branch=test/app-upstream -f sha="$sha" \
+            -f message="test: the App changes upstream.json only" -f content="$new" >/dev/null
+          gh pr create --repo $R --head test/app-upstream --base main --title "TEST by the App: upstream.json only" --body "Will be closed."
