@@ -89,23 +89,35 @@ jobs:
       - name: Build and test through the rendered registry
         shell: bash
         working-directory: rendered/consumers/default
+        # A server that stops to answer must not use the 45 minutes of the job.
+        # A step that is too long fails, and rerun.yml starts a failed job again;
+        # a job that is too long is cancelled, and nothing starts it again.
+        timeout-minutes: 25
         run: |
           if [[ "$RUNNER_OS" == Windows ]]; then
-            # A short output base keeps the paths under the Windows limit.
-            startup="--output_base=C:/b"
             registry="file:///$(cd ../../registry && pwd -W)"
           else
-            startup=""
             registry="file://$(cd ../../registry && pwd)"
           fi
-          bazel $startup version
           flags=(--registry="$registry" --registry=https://bcr.bazel.build)
-          # A download can fail for a moment, and one such failure in one of many
-          # jobs would make the gate red. Bazel gets its dependencies in the
-          # loading and analysis phases, so try those again before the tests.
+          # Bazel gets its dependencies in the loading and analysis phases. Try
+          # them up to three times before the tests, for two reasons:
+          #  * a download can fail for a moment;
+          #  * on Windows arm64 the server of Bazel 8 stopped, or did not answer,
+          #    at the start of the loading phase, and it did so again with the
+          #    same directories. So each attempt on Windows gets new directories,
+          #    a short path to stay under the Windows limit, and a time limit.
           for attempt in 1 2 3; do
-            bazel $startup build --nobuild "${flags[@]}" "@${{ needs.render.outputs.module }}//..." && break
+            startup=""; limit=""
+            if [[ "$RUNNER_OS" == Windows ]]; then
+              startup="--output_user_root=C:/u$attempt --output_base=C:/b$attempt"
+              limit="timeout 600"
+            fi
+            [[ $attempt == 1 ]] && bazel $startup version
+            if $limit bazel $startup build --nobuild "${flags[@]}" "@${{ needs.render.outputs.module }}//..."; then break; fi
+            echo "::warning::Attempt $attempt of the loading and analysis phases failed."
             [[ $attempt == 3 ]] && exit 1
+            if [[ "$RUNNER_OS" == Windows ]]; then taskkill //F //IM java.exe >/dev/null 2>&1 || true; fi
             sleep $((attempt * 20))
           done
           bazel $startup test --verbose_failures --test_output=errors "${flags[@]}" \
@@ -118,17 +130,20 @@ jobs:
         if: failure() && runner.os == 'Windows'
         shell: bash
         run: |
-          tail -n 80 C:/b/server/jvm.out 2>/dev/null || echo "no jvm.out"
-          ls -la C:/b/server C:/b/*.log C:/b/hs_err* 2>/dev/null || true
+          for b in C:/b1 C:/b2 C:/b3; do
+            [[ -d $b ]] || continue
+            echo "=== $b"; tail -n 60 $b/server/jvm.out 2>/dev/null || echo "no jvm.out"
+            ls -la $b/server $b/*.log $b/hs_err* 2>/dev/null || true
+          done
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure() && runner.os == 'Windows'
         with:
           name: bazel-server-logs-${{ matrix.platform.runner }}-bazel-${{ matrix.bazel }}
           path: |
-            C:/b/server/jvm.out
-            C:/b/server/hs_err*.log
-            C:/b/hs_err*.log
-            C:/b/java.log*
+            C:/b?/server/jvm.out
+            C:/b?/server/hs_err*.log
+            C:/b?/hs_err*.log
+            C:/b?/java.log*
           if-no-files-found: ignore
           retention-days: 30
 
