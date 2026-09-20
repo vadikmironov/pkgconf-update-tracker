@@ -42,6 +42,7 @@ holds it, with links that operate. It is a copy only.
 | Gate | A job above is red | This is the one required check |
 | Publish | BCR's `update_integrity` or `bcr_validation` does not agree with the render | It is an error of this repository. `tools/common/stage_into_bcr.sh <BCR checkout>` shows it locally |
 | Drift | BCR has a version that this repository does not know, or the two are not byte-identical | A person changed the module in BCR directly. Bring the change into `module/` before the next bump |
+| Token expiry | GitHub refused the token for the BCR fork: it is expired or revoked. Three weeks before the date, this job opens an issue | Make a new fine-grained token for the fork only, then `gh secret set BCR_FORK_TOKEN --env bcr-publish` |
 
 A change to `upstream.json` only needs no review. Each other path has a code
 owner, so a pull request that changes a script, the module or a workflow needs

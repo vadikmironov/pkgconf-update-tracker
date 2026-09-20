@@ -34,3 +34,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: tools/common/drift.py "$RUNNER_TEMP/bcr"
+
+  token-expiry:
+    # Three weeks before the token for the BCR fork expires, open an issue. The
+    # job reads only a header of one API response; the token goes to curl and to
+    # nothing else.
+    name: Token expiry
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: bcr-publish
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Read the expiry date, and open an issue when it is near
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORK_TOKEN: ${{ secrets.BCR_FORK_TOKEN }}
+          FORK: ${{ vars.BCR_FORK }}
+        run: |
+          headers="$(curl -sS -o /dev/null -D - -H "Authorization: Bearer $FORK_TOKEN" "https://api.github.com/repos/$FORK")"
+          export HTTP_STATUS="$(echo "$headers" | head -1 | awk '{print $2}')"
+          export EXPIRES="$(echo "$headers" | tr -d '\r' | grep -i '^github-authentication-token-expiration:' | cut -d' ' -f2-)"
+          tools/common/token_expiry.py
