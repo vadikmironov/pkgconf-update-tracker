@@ -111,10 +111,26 @@ jobs:
           bazel $startup test --verbose_failures --test_output=errors "${flags[@]}" \
             "@${{ needs.render.outputs.module }}//..."
 
+      # "Server terminated abruptly" in the log of the client says nothing about
+      # the cause. The cause is in these files, and the runner is deleted after
+      # the job, so keep them.
       - name: The log of the Bazel server, if the server stopped
         if: failure() && runner.os == 'Windows'
         shell: bash
-        run: tail -n 80 C:/b/server/jvm.out 2>/dev/null || echo "no jvm.out"
+        run: |
+          tail -n 80 C:/b/server/jvm.out 2>/dev/null || echo "no jvm.out"
+          ls -la C:/b/server C:/b/*.log C:/b/hs_err* 2>/dev/null || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure() && runner.os == 'Windows'
+        with:
+          name: bazel-server-logs-${{ matrix.platform.runner }}-bazel-${{ matrix.bazel }}
+          path: |
+            C:/b/server/jvm.out
+            C:/b/server/hs_err*.log
+            C:/b/hs_err*.log
+            C:/b/java.log*
+          if-no-files-found: ignore
+          retention-days: 30
 
   test-ubuntu2004:
     # The oldest image of the BCR presubmit. GitHub has no such runner, so the
