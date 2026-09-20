@@ -39,7 +39,7 @@ holds it, with links that operate. It is a copy only.
 | pkgconf checks, the `config.h` step | Upstream added a template entry, and no check fills it. pkgconf reads these with `#if`, so it would use its fallback code and give no warning | Write the check in `module/overlay/BUILD.bazel`. If `#undef` is correct for the entry, add it to `tools/module/expected_undef.txt` |
 | pkgconf checks, the runfiles step | A test does not find its data through a runfiles manifest, the mode that Windows always uses | Correct the test runner in `module/overlay/` |
 | Permalinks | The text under a permalink changed upstream, so the renderer cannot move the link | Look at what changed: it can mean work for the overlay. Correct the link in `module/`, then run `tools/common/check_permalinks.py --version <new> --fix` |
-| Gate | A job above is red | This is the one required check |
+| Gate | A job above is red | This is the one required check. `rerun.yml` starts the failed jobs again one time, on a different runner, so a red Gate means that the job failed two times |
 | Publish | BCR's `update_integrity` or `bcr_validation` does not agree with the render | It is an error of this repository. `tools/common/stage_into_bcr.sh <BCR checkout>` shows it locally |
 | Drift | BCR has a version that this repository does not know, or the two are not byte-identical | A person changed the module in BCR directly. Bring the change into `module/` before the next bump |
 | Token expiry | GitHub refused the token for the BCR fork: it is expired or revoked. Three weeks before the date, this job opens an issue | Make a new fine-grained token for the fork only, then `gh secret set BCR_FORK_TOKEN --env bcr-publish` |

@@ -111,6 +111,11 @@ jobs:
           bazel $startup test --verbose_failures --test_output=errors "${flags[@]}" \
             "@${{ needs.render.outputs.module }}//..."
 
+      - name: The log of the Bazel server, if the server stopped
+        if: failure() && runner.os == 'Windows'
+        shell: bash
+        run: tail -n 80 C:/b/server/jvm.out 2>/dev/null || echo "no jvm.out"
+
   test-ubuntu2004:
     # The oldest image of the BCR presubmit. GitHub has no such runner, so the
     # job runs in a container.
