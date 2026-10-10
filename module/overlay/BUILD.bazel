@@ -31,9 +31,17 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_cc_autoconf//autoconf:autoconf.bzl", "autoconf")
 load("@rules_cc_autoconf//autoconf:autoconf_hdr.bzl", "autoconf_hdr")
+load("@rules_cc_autoconf//autoconf:autoconf_package_info.bzl", "autoconf_package_info")
 load("@rules_cc_autoconf//autoconf:checks.bzl", "checks")
-load("@rules_cc_autoconf//autoconf:package_info.bzl", "package_info")
 load(":utils.bzl", "pkg_config_alias", "runfiles_filelist")
+
+# clang driving the MinGW target (rules_cc reports it as plain `clang`), as
+# used by the hermetic-llvm BCR toolchain on Windows.
+config_setting(
+    name = "windows_clang",
+    constraint_values = ["@platforms//os:windows"],
+    flag_values = {"@rules_cc//cc/compiler": "clang"},
+)
 
 # Upstream's install rules, linked above, put pkg.m4 under share/aclocal and
 # COPYING under share/doc/pkgconf.
@@ -111,7 +119,7 @@ _PROBE_COPTS = ["-D" + macro for macro in _FEATURE_TEST_MACROS]
 # The AC_INIT / meson `project()` metadata. PACKAGE_VERSION is read out of
 # MODULE.bazel so the version lives in exactly one place; strip_bcr_version
 # drops any `.bcr.N` suffix a rebuild would add.
-package_info(
+autoconf_package_info(
     name = "package",
     module_bazel = "MODULE.bazel",
     package_bugreport = "https://todo.sr.ht/~kaniini/pkgconf",
@@ -307,9 +315,13 @@ cc_library(
     # include root, matching upstream's `include_directories('.')`.
     includes = ["."],
     linkopts = select({
+        ":windows_clang": ["-ladvapi32"],
         # libpkgconf/path.c reads the search paths out of the registry and
-        # Bazel's MSVC toolchain does not link advapi32 by default.
-        "@platforms//os:windows": ["advapi32.lib"],
+        # Bazel's MSVC toolchain does not link advapi32 by default. MSVC-style
+        # drivers take the .lib name; clang/gcc for the MinGW target take -l.
+        "@rules_cc//cc/compiler:clang-cl": ["advapi32.lib"],
+        "@rules_cc//cc/compiler:mingw-gcc": ["-ladvapi32"],
+        "@rules_cc//cc/compiler:msvc-cl": ["advapi32.lib"],
         "//conditions:default": [],
     }),
     local_defines = _LOCAL_DEFINES,
