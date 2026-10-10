@@ -52,7 +52,7 @@ jobs:
           echo "module_version=$(ls "rendered/registry/modules/$module" | grep -v -e metadata.json -e README.md)" >> "$GITHUB_OUTPUT"
       - name: "Canary: each check of the gate still fails on a bad input"
         run: tools/common/canary.py
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rendered
           path: rendered/
@@ -145,7 +145,7 @@ jobs:
             echo "=== $b"; tail -n 60 $b/server/jvm.out 2>/dev/null || echo "no jvm.out"
             ls -la $b/server $b/*.log $b/hs_err* 2>/dev/null || true
           done
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure() && runner.os == 'Windows'
         with:
           name: bazel-server-logs-${{ matrix.platform.runner }}-bazel-${{ matrix.bazel }}
