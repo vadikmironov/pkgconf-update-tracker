@@ -2,7 +2,7 @@
 
 module(
     name = "pkgconf",
-    version = "3.0.7.bcr.1",
+    version = "3.0.8.bcr.1",
     bazel_compatibility = [">=7.4.0"],
 )
 
