@@ -77,7 +77,7 @@ tools/common/render.py --check ~/bazel-central-registry
 
 | Path | Content |
 | --- | --- |
-| `upstream.json` | The upstream version, the number of a BCR-only revision, and the version that the line numbers of the permalinks are correct for |
+| `upstream.json` | The upstream version, the number of a BCR-only revision and the version that it is for (`bcr_revision_for`: a revision for an older version does not apply), and the version that the line numbers of the permalinks are correct for |
 | `module/` | The module. `%{upstream_version}` and `%{module_version}` replace the version |
 | `module/source.json.in` | The URL and the key order of `source.json`. The renderer calculates the hashes |
 | `consumers/` | Root modules that use the rendered registry |
