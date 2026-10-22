@@ -114,7 +114,7 @@ void copy_file(const std::string &src, const std::string &dst) {
 // with paths like `../../tests/lib-sbom-files/basic.json`, which
 // ExpectedStdoutFile resolves against the `.test` file's own directory, so the
 // layout is load-bearing and not just tidy.
-// https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/tests/test-runner.c#L1335-L1341
+// https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/tests/test-runner.c#L1335-L1341
 std::string stage(const Runfiles &runfiles, const std::string &filelist_path) {
   const char *tmp = std::getenv("TEST_TMPDIR");
   if (tmp == nullptr || *tmp == '\0')

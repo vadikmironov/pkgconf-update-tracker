@@ -8,20 +8,20 @@ Four parts of `meson.build` are deliberately not ported:
 
   * the fuzzers, off unless `-Dfuzzing=true` and wanting a clang/libFuzzer unix
     environment --
-    https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L217-L219
+    https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L217-L219
   * the OOM and fuzz-replay tests, which need `-Wl,--wrap` and, for the
     spdxtool one, a *shared* libpkgconf --
-    https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L372-L443
+    https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L372-L443
   * the Windows manifest resource, which asks every executable for a UTF-8
     active code page and long-path awareness. Bazel's MSVC toolchain has no
     resource-compile action. No test case sets `RequireUtf8Locale`, so nothing
     here is left untested by its absence, but a Windows `pkgconf.exe` built by
     Bazel will not read paths over MAX_PATH --
-    https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L237-L250
+    https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L237-L250
   * the install rules and the WiX packaging that follows them, neither of which
     has a Bazel equivalent. `pkg.m4` and `COPYING` are exported below so a
     consumer can install them itself --
-    https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L471-L481
+    https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L471-L481
 """
 
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
@@ -60,7 +60,7 @@ exports_files([
 # Consumers that install elsewhere override them, e.g.
 #     --@pkgconf//:pkg_config_dir=/opt/lib/pkgconfig
 #
-# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson_options.txt
+# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson_options.txt
 
 # meson_options.txt: with-pkg-config-dir.
 string_flag(
@@ -100,7 +100,7 @@ string_flag(
 # sources will -- without them glibc hides strndup/reallocarray and the probes
 # answer "no" for functions the build then happily calls. _FEATURE_TEST_MACROS
 # is used for both roles below.
-# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L81-L100
+# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L81-L100
 #
 # The MSVC CRT ignores all six, which is why upstream keeps them off the branch
 # it takes for MSVC-syntax compilers; the probes take them unconditionally
@@ -156,7 +156,7 @@ autoconf(
     # `/* #undef ... */` and pkgconf silently takes its fallback path, and a
     # check with no template entry is silently dropped. README.md has the
     # procedure for checking both on a version bump.
-    # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/configure.ac#L30-L41
+    # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/configure.ac#L30-L41
     #
     # pkgconf reads every one of these with `#if`, not `#ifdef`, so a failed
     # check has to render `#define HAVE_DECL_X 0` -- which is what
@@ -199,7 +199,7 @@ autoconf(
         # it probes, but config.h.meson only has entries for these two -- the
         # pair libpkgconf/bsdstubs.c can substitute -- so the other eight would
         # go nowhere.
-        # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L68-L107
+        # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L68-L107
         checks.AC_CHECK_FUNC(
             fn,
             copts = _PROBE_COPTS,
@@ -248,7 +248,7 @@ autoconf_hdr(
 # /wd suppressions. It branches on the compiler's argument *syntax* rather than
 # its identity, which is what puts clang-cl with MSVC here and in
 # _LOCAL_DEFINES.
-# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L13-L50
+# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L13-L50
 _COPTS = select({
     "@rules_cc//cc/compiler:clang-cl": ["/w"],
     "@rules_cc//cc/compiler:msvc-cl": ["/w"],
@@ -267,7 +267,7 @@ _LOCAL_DEFINES = select({
 # produce `liblibpkgconf.a`. Depend on the `:libpkgconf` alias below.
 cc_library(
     name = "lib/pkgconf",
-    # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L179-L201
+    # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L179-L201
     srcs = [
         "libpkgconf/argvsplit.c",
         "libpkgconf/audit.c",
@@ -294,7 +294,7 @@ cc_library(
     # Upstream installs the first five; the rest of libpkgconf/*.h is
     # internal and rides along in `srcs`. config.h is not installed, but every
     # cli/ source includes it and `hdrs` is the only way for it to reach them.
-    # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/libpkgconf/meson.build#L6-L11
+    # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/libpkgconf/meson.build#L6-L11
     hdrs = [
         "libpkgconf/bsdstubs.h",
         "libpkgconf/iter.h",
@@ -309,7 +309,7 @@ cc_library(
     # libpkgconf-api.h short-circuits its dllexport/dllimport ladder on it, so
     # it has to reach consumers -- `defines`, not `copts`, matching the
     # `extra_cflags` of the .pc file upstream generates.
-    # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L172-L177
+    # https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L172-L177
     defines = ["PKGCONFIG_IS_STATIC"],
     # Sources say `#include <libpkgconf/...>`, so the archive root is the
     # include root, matching upstream's `include_directories('.')`.
@@ -384,7 +384,7 @@ cc_binary(
 # off argv[0] is deduce_personality, which looks for a `-pkg` infix to pick a
 # cross-compilation personality; `pkg-config` has none, so behaviour is
 # identical rather than merely similar.
-# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/cli/main.c#L74-L102
+# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/cli/main.c#L74-L102
 pkg_config_alias(
     name = "pkg-config",
     pkgconf = ":pkgconf",
@@ -556,14 +556,14 @@ cc_library(
 # ExpectedStdoutFile resolves against the `.test` file's own directory, so
 # wherever these end up the `t/<suite>` directory has to stay two levels below
 # them.
-# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/tests/test-runner.c#L1335-L1341
+# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/tests/test-runner.c#L1335-L1341
 _FIXTURES = glob([
     "tests/lib*/**",
     "tests/personality-data/**",
 ])
 
 # Upstream's suite list, keyed by the target-name spelling of each suite.
-# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.9/meson.build#L448-L462
+# https://github.com/pkgconf/pkgconf/blob/pkgconf-3.0.10/meson.build#L448-L462
 _SUITES = {
     suite.replace("-", "_"): suite
     for suite in [
