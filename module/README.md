@@ -22,8 +22,8 @@ probe renders as `#define HAVE_DECL_X 0`.
 Then re-point the `pkgconf-%{upstream_version}` GitHub links in `overlay/` — a fifth of the
 line anchors moved across one patch release — run
 `bazel run //tools:update_integrity -- pkgconf --version=<new>`, and test both
-runfiles modes: `--noenable_runfiles` is the only local way to hit the path
-Windows always takes.
+runfiles modes: `--noenable_runfiles` is the only local way to find the test
+files through a manifest, as Windows always does.
 
 Upstream removes autotools in 3.1 and the 2.x → 3.0 bump restructured the tests
 wholesale, so expect a minor bump to be a rewrite.
