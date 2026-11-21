@@ -84,7 +84,7 @@ Writes one `Rlocation` path per line, in `srcs` order, to `<name>.filelist`,
 and puts `srcs` in the runfiles of whatever depends on it.
 
 The runfiles libraries resolve a path but cannot enumerate one, so a test that
-has to rebuild a directory from a runfiles manifest needs the list of files to
-rebuild it from to come from the build. See `bazel_test_main.cc`.
+has to rebuild a directory from its runfiles needs the list of files to rebuild
+it from to come from the build. See `bazel_test_main.cc`.
 """,
 )

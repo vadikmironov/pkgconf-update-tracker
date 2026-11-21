@@ -2,20 +2,24 @@
 //
 // SPDX-License-Identifier: pkgconf
 //
-// Not upstream. meson hands test-runner two absolute directories. Under
-// Bazel those are runfiles, and Bazel only
-// promises to materialize a runfiles *tree* on Linux and macOS; on Windows a
-// test is handed a manifest instead, and Bazel's own Windows test wrapper falls
-// back to Rlocation even to find the test binary (tools/test/windows/tw.cc).
-// test-runner opendir()s the suite and realpath()s the fixtures, and knows
-// nothing about manifests, so the directories have to be produced here for the
-// tests to run without `--enable_runfiles`:
+// Not upstream. meson hands test-runner two absolute directories of regular
+// files. Under Bazel those are runfiles, and neither kind of runfiles is that:
 //
-//   tree      $RUNFILES_DIR/<dir> exists already; hand both over untouched.
-//   manifest  rebuild them under $TEST_TMPDIR from <filelist>, which utils.bzl
-//             writes from the same glob that puts the files in the runfiles.
-//             Rebuilding rather than pointing at the unpacked tarball is what
-//             keeps the BUILD file's `exclude` honoured.
+//   tree      (Linux, macOS) the directories exist, but each file in them is a
+//             symlink into the external repository. libpkgconf follows the
+//             symlink of a .pc file before it takes the directory, so
+//             ${pcfiledir} would be where Bazel unpacked pkgconf and not the
+//             fixture directory that the test cases expect.
+//             https://github.com/pkgconf/pkgconf/blob/pkgconf-%{upstream_version}/libpkgconf/pkg.c#L68-L73
+//   manifest  (Windows, `--noenable_runfiles`) there are no directories at
+//             all. Bazel's own Windows test wrapper falls back to Rlocation
+//             even to find the test binary (tools/test/windows/tw.cc), and
+//             test-runner, which opendir()s the suite and realpath()s the
+//             fixtures, knows nothing about manifests.
+//
+// So on every platform the two directories are rebuilt as copies under
+// $TEST_TMPDIR from <filelist>, which utils.bzl writes from the same glob that
+// puts the files in the runfiles.
 //
 // The tools are found by prepending their directory to PATH rather than by
 // passing `--tool-dir`, which run_tool() only uses to prefix the tool name
@@ -53,18 +57,6 @@ namespace {
 void die(const std::string &message) {
   std::fprintf(stderr, "bazel_test_main: %s\n", message.c_str());
   std::exit(1);
-}
-
-bool is_dir(const std::string &path) {
-  struct stat st;
-  return stat(path.c_str(), &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR;
-}
-
-// Rlocation reports a path without checking it -- with a runfiles directory
-// known it is little more than a join -- so existence is confirmed separately.
-std::string find_dir(const Runfiles &runfiles, const std::string &rlocation) {
-  const std::string path = runfiles.Rlocation(rlocation);
-  return !path.empty() && is_dir(path) ? path : std::string();
 }
 
 std::string find_file(const Runfiles &runfiles, const std::string &rlocation) {
@@ -117,8 +109,7 @@ void copy_file(const std::string &src, const std::string &dst) {
 // https://github.com/pkgconf/pkgconf/blob/pkgconf-%{upstream_version}/tests/test-runner.c#L1335-L1341
 std::string stage(const Runfiles &runfiles, const std::string &filelist_path) {
   const char *tmp = std::getenv("TEST_TMPDIR");
-  if (tmp == nullptr || *tmp == '\0')
-    die("no runfiles tree, and TEST_TMPDIR is unset");
+  if (tmp == nullptr || *tmp == '\0') die("TEST_TMPDIR is unset");
 
   // Windows spells $TEST_TMPDIR with backslashes; every API used below takes
   // either separator, so normalising once here is enough to let the rest of
@@ -135,6 +126,7 @@ std::string stage(const Runfiles &runfiles, const std::string &filelist_path) {
   while (std::getline(in, rlocation)) {
     if (rlocation.empty()) continue;
     // Drop the repository name so the copy is rooted where the tarball is.
+    // Reading the name off each line keeps the module's name out of this file.
     const std::string dst =
         root + "/" + rlocation.substr(repo_of(rlocation).size() + 1);
     make_dirs(dst.substr(0, dst.find_last_of('/')));
@@ -176,24 +168,14 @@ int main(int argc, char *argv[]) {
     return 2;
   }
   // The first two arguments are Rlocation paths, expanded by the BUILD file;
-  // <suite-dir> is relative to the repository root, e.g. `t/basic`. Which
-  // repository that is gets read off the front of <filelist> rather than
-  // written down, so this file never names the module.
-  const std::string filelist_rlocation = argv[1];
-  const std::string repo = repo_of(filelist_rlocation) + "/";
-
+  // <suite-dir> is relative to the repository root, e.g. `t/basic`.
   std::string error;
   const std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(&error));
   if (runfiles == nullptr) die("cannot initialise runfiles: " + error);
 
-  std::string fixtures = find_dir(*runfiles, repo + FIXTURES_DIR);
-  std::string suite = find_dir(*runfiles, repo + argv[3]);
-  if (fixtures.empty() || suite.empty()) {
-    const std::string root =
-        stage(*runfiles, find_file(*runfiles, filelist_rlocation));
-    fixtures = root + "/" + FIXTURES_DIR;
-    suite = root + "/" + argv[3];
-  }
+  const std::string root = stage(*runfiles, find_file(*runfiles, argv[1]));
+  std::string fixtures = root + "/" + FIXTURES_DIR;
+  std::string suite = root + "/" + argv[3];
 
   // All four tools share a directory, so any one of them locates it.
   const std::string pkgconf = find_file(*runfiles, argv[2]);

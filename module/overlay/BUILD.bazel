@@ -535,10 +535,10 @@ cc_library(
     deps = [":_cli"],
 )
 
-# test-runner takes directories, which have to be resolved out of the runfiles
-# in-process; bazel_test_main.cc explains why. Separate from the library above
-# so that `-Dmain=` renames only test-runner.c's entry point, and alwayslink
-# because this archive holds the real `main`.
+# test-runner takes directories of regular files, which have to be copied out
+# of the runfiles in-process; bazel_test_main.cc explains why. Separate from
+# the library above so that `-Dmain=` renames only test-runner.c's entry point,
+# and alwayslink because this archive holds the real `main`.
 cc_library(
     name = "_test_runner",
     testonly = True,
@@ -594,10 +594,10 @@ _TEST_TOOLS = [
 ]
 
 # One target per suite carrying the files the suite needs plus the list of where
-# they land in the runfiles, so a launcher with no tree to point at can rebuild
-# the directories. Deriving the list from the same glob as the runfiles keeps
-# `exclude` honoured either way, and writing it to a file keeps it off a command
-# line Windows caps at 32k.
+# they land in the runfiles, from which the launcher rebuilds the directories as
+# copies. Deriving the list from the same glob as the runfiles keeps the two the
+# same, and writing it to a file keeps it off a command line Windows caps at
+# 32k.
 #
 # The glob is not just `*.test`: `ExpectedStdoutFile` names a sibling file too,
 # and test-runner ignores anything without a `.test` suffix as it scans.
@@ -605,15 +605,7 @@ _TEST_TOOLS = [
     runfiles_filelist(
         name = "_test_{}_files".format(name),
         testonly = True,
-        srcs = _FIXTURES + glob(
-            ["t/{}/*".format(suite)],
-            # pkg_get_parent_dir() in libpkgconf/pkg.c resolves the .pc file
-            # through symlinks before taking its directory, and every file in a
-            # runfiles tree is a symlink into the external repository, so
-            # PCFILEDIR reports where Bazel unpacked pkgconf rather than the
-            # fixture directory. No invocation of test-runner reconciles the two.
-            exclude = ["t/basic/print-variables-env.test"],
-        ),
+        srcs = _FIXTURES + glob(["t/{}/*".format(suite)]),
     )
     for name, suite in _SUITES.items()
 ]
