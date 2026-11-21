@@ -612,7 +612,10 @@ _TEST_TOOLS = [
             # runfiles tree is a symlink into the external repository, so
             # PCFILEDIR reports where Bazel unpacked pkgconf rather than the
             # fixture directory. No invocation of test-runner reconciles the two.
-            exclude = ["t/basic/print-variables-env.test"],
+            exclude = [
+                "t/basic/print-variables-env.test",
+                "t/basic/variable-pcfiledir-fullpath.test",
+            ],
         ),
     )
     for name, suite in _SUITES.items()
